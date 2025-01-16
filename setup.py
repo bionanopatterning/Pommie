@@ -16,6 +16,10 @@ setup(
     include_package_data=False,  # weirdly, the above filetypes _are_ included when this parameter is set to False.
     install_requires=[
         "numpy-quaternion>=2022.4.4",
-        "plotly>=5.18.0"
+        "glfw",
+        "matplotlib",
+        "scipy",
+        "mrcfile",
+        "PyOpenGL"
     ]
 )
