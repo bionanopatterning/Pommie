@@ -1,5 +1,5 @@
-from Pommer.typedefs import *
-import Pommer.compute as compute
+from Pommie.typedefs import *
+import Pommie.compute as compute
 
 ITERATION_COUNTER = -1
 

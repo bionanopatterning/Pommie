@@ -20,6 +20,6 @@ setup(
         "matplotlib",
         "scipy",
         "mrcfile",
-        "PyOpenGL"
+        "PyOpenGL",
     ]
 )

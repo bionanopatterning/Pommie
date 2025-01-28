@@ -1,9 +1,6 @@
 import quaternion
 import mrcfile
 import glob
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import plotly.express as px
 from Pommie.opengl import *
 from Pommie.compute import reorient_volume, gaussian_filter
 from Pommie import util
@@ -507,13 +504,14 @@ class Volume:
                 img_b = self.data[j, :, :]
             else:
                 img_b = binary_dilation(self.data[j, :, :], iterations=-thickness_in).astype(np.float32)
-            self.data[j, :, :] = img_a - img_b
+            self.data[j, :, :] = np.logical_and(img_a, np.logical_not(img_b))
         return self
 
     def erode_2d(self, iterations=1):
         for j in range(self.data.shape[0]):
             self.data[j, :, :] = binary_erosion(self.data[j, :, :], iterations=iterations).astype(np.float32)
         return self
+
 
 class Particle:
     id_gen = count(0)
@@ -570,6 +568,14 @@ class Particle:
             resampled[i] = Particle(resampled[i], apix=self.apix)
             resampled[i].transform = transforms[i]
         return Dataset(resampled)
+
+    def bin(self, bin_factor=2):
+        b = bin_factor
+        _n = (self.n // b) * b
+        self.data = self.data[:_n, :_n, :_n]
+        self.data = self.data.reshape(_n//b, b, _n//b, b, _n//b, b).mean(5).mean(3).mean(1)
+        self.n = self.n // b
+        return self
 
     def normalise(self):
         mu = np.mean(self.data)
@@ -679,6 +685,7 @@ class Particle:
 
     def clone(self):
         return copy.deepcopy(self)
+
 
 class Mask(Particle):
     def __init__(self, particle):
