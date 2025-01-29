@@ -13,9 +13,10 @@ layout(std430, binding = 0) buffer templates_in {
 
 layout(binding = 2, r32f) uniform readonly image2D slice;
 layout(binding = 3, r32f) uniform readonly image2D slice_mask;
-layout(binding = 4, r32f) uniform writeonly image2D slice_score;
+layout(binding = 4, rgba32f) uniform writeonly image2D slice_score;
 
-uniform int T; // actual number of templates (may be lower than MAX_TEMPLATES)
+uniform int T; // actual number of templates
+uniform int z_score;
 
 shared float img[N * N];
 shared float scores[MAX_TEMPLATES];
@@ -26,7 +27,8 @@ void main(void)
     int template_number = int(gl_LocalInvocationID.x);
     float score = 0.0f;
 
-    if ((imageLoad(slice_mask, c).r > 0) && (template_number < T))
+    bool mask_true = imageLoad(slice_mask, c).r > 0;
+    if (mask_true && (template_number < T))
     {
         if (gl_LocalInvocationID.x == 0)
         {
@@ -83,13 +85,16 @@ void main(void)
     memoryBarrierShared();
     barrier();
 
-    float max_score = scores[0];
-    if (gl_LocalInvocationID.x == 0)
+
+    if (mask_true && (gl_LocalInvocationID.x == 0))
     {
         float max_score = scores[0];
+        float sum_score = scores[0];
         float max_index = 0.0f;
+
         for (int j=1; j<T; j++)
         {
+            sum_score += scores[j];
             if (scores[j] > max_score)
             {
                 max_score = scores[j];
@@ -97,6 +102,17 @@ void main(void)
             }
         }
 
-        imageStore(slice_score, c, vec4(max_score * 0.5 + 0.5 + max_index * 100));
+        float mu = sum_score / (T + 1);
+        float std = 0.0f;
+
+        for (int j=0; j<T; j++)
+        {
+            std += pow((scores[j] - mu), 2);
+        }
+
+        std = sqrt(std / T);
+
+        float out_score = z_score == 1 ? (max_score - mu) / std : max_score;
+        imageStore(slice_score, c, vec4(out_score, max_index, 0.0f, 0.0f));
     }
 }

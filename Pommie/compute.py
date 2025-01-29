@@ -76,7 +76,7 @@ def initialize():
     tm_scores_texture.set_edge_mode(0)
     image_buffer_a = Texture('r32f')
     image_buffer_b = Texture('r32f')
-    image_buffer_c = Texture('r32f')
+    image_buffer_c = Texture('rgba32f')
 
 
 def reorient_volume(volume, transforms, mask=None):
@@ -160,14 +160,15 @@ def set_tm2d_n(n=32):
     cs_tm_2d_n = n
 
 
-def tm2d_single_slice(image, image_mask=None):
+def tm2d_single_slice(image, image_mask=None, z_score=True):
     image_buffer_a.update(image)
     image_buffer_b.update(image_mask)
-    image_buffer_c.update(np.zeros_like(image))
+    image_buffer_c.update(np.zeros((image.shape[0], image.shape[1], 4)))
 
     # bind shader
     cs_tm_2d.bind()
     cs_tm_2d.uniform1i("T", tm_n_templates)
+    cs_tm_2d.uniform1i("z_score", 1 if z_score else 0)
     image_buffer_a.bind_image_slot(2, 0)
     image_buffer_b.bind_image_slot(3, 0)
     image_buffer_c.bind_image_slot(4, 1)
@@ -177,8 +178,8 @@ def tm2d_single_slice(image, image_mask=None):
     glFinish()
 
     image_buffer_c.bind()
-    scores = glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT)
-    scores = np.frombuffer(scores, dtype=np.float32).reshape((image.shape[0], image.shape[1]))
+    scores = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT)
+    scores = np.frombuffer(scores, dtype=np.float32).reshape((image.shape[0], image.shape[1], 4))
     return scores
 
 
@@ -310,30 +311,35 @@ def tm_clean():
 
 
 
-def find_template_in_volume(volume, volume_mask, template, template_mask, transforms, stride=1, similarity_function=2, dimensionality=2, return_indices=False, skip_binding=False):
+def find_template_in_volume(volume, volume_mask, template, template_mask, transforms, z_score=True, stride=1, dimensionality=2, skip_binding=False, verbose=True):
     """
     volume: Pommie.Volume object
     template: Pommie.Particle object
     mask: Pommie.Volume object with same size as volume, matching occurs only where mask > 0
     """
+
+    def printv(s):
+        if verbose:
+            print(s)
+
     if not skip_binding:
         t_start = time.time()
         templates = template.resample(transforms)
         template_masks = template_mask.resample(transforms)
-        print(f"Resampling templates and masks {time.time() - t_start:.3f} s.")
+        printv(f"Resampling templates and masks {time.time() - t_start:.3f} s.")
 
     if dimensionality == 2:
         if template.n != cs_tm_2d_n:
-            print(f"find_template_in_volume using 2D-matching is currently set to use a template sizes of {cs_tm_2d_n}! (tried: {template.n})")
+            printv(f"find_template_in_volume using 2D-matching is currently set to use a template sizes of {cs_tm_2d_n}! (tried: {template.n})")
             return
 
         if not skip_binding:
             t_start = time.time()
             templates_2d = [t.data[cs_tm_2d_n//2, :, :] for t in templates]
             template_masks_2d = [m.data[cs_tm_2d_n//2, :, :] for m in template_masks]
-            print(f"Two-dimensionalizing {time.time() - t_start:.3f} s.")
+            printv(f"Two-dimensionalizing {time.time() - t_start:.3f} s.")
             tm2d_bind_templates(templates_2d, template_masks_2d)
-            print(f"Binding templates {time.time() - t_start:.3f} s.")
+            printv(f"Binding templates {time.time() - t_start:.3f} s.")
 
         volume_mask.data[:cs_tm_2d_n // 2, :, :] = 0
         volume_mask.data[-cs_tm_2d_n // 2:, :, :] = 0
@@ -347,8 +353,6 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
                 volume_mask.data[:, 1 + k::stride, :] = 0
                 volume_mask.data[:, :, 1 + k::stride] = 0
 
-        t_start = time.time()
-
         J = volume.data.shape[0]
         K = volume.data.shape[1]
         L = volume.data.shape[2]
@@ -356,14 +360,15 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
         indices = np.zeros_like(volume.data)
         ts = time.time()
         it = 0
+
         for j in range(0, J, stride):
             it += 1
-            if np.sum(volume_mask.data[j, :, :]) == 0:
+            if not np.any(volume_mask.data[j, :, :]):
                 continue
-            slice_tm_out = tm2d_single_slice(volume.data[j, :, :], volume_mask.data[j, :, :])[::stride, ::stride]
+            slice_tm_out = tm2d_single_slice(volume.data[j, :, :], volume_mask.data[j, :, :], z_score=z_score)[::stride, ::stride, :]
 
-            slice_scores = (slice_tm_out % 10) * 2.0 - 1.0
-            slice_indices = (slice_tm_out - slice_tm_out % 10) / 100
+            slice_scores = slice_tm_out[:, :, 0]
+            slice_indices = slice_tm_out[:, :, 1]
             if stride > 1:
                 slice_scores = zoom(slice_scores, (K / slice_scores.shape[0], L / slice_scores.shape[1]), order=0)
                 scores[j:j + stride, :, :] = slice_scores
@@ -372,44 +377,40 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
             else:
                 scores[j, :, :] = slice_scores
                 indices[j, :, :] = slice_indices
-            # print(f"Making calls to GPU: {j // stride}/{J // stride} = {j / J * 100:.1f}%")
-            # ect = datetime.datetime.now() + datetime.timedelta(seconds=((time.time() - ts) / it) * (J / stride - it))
-            # print(
-            #     f"Estimated time until completion: {((time.time() - ts) / it) * (J / stride - it):.1f} seconds: {ect.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"Template matching: {time.time() - ts:.3f} s.")
+        printv(f"Template matching: {time.time() - ts:.3f} s.")
         return scores, indices
-    else:
-        B = templates.n
-        coordinates = list()
-        J, K, L = volume.data.shape
-        N = 0
-        for j in range(B // 2, J - B // 2, stride):
-            for k in range(B // 2, K - B // 2, stride):
-                for l in range(B // 2, L - B // 2, stride):
-                    if volume_mask[j, k, l] > 0:
-                        coordinates.append((j, k, l))
-                        N += 1
-        tm_bind_templates(templates, mask=template_mask, similarity_function=similarity_function)
-        scores = np.zeros_like(volume.data) + 1e9
-        indices = np.zeros(volume.data.shape, dtype=np.int16) - 1
-
-        n = 0
-        ts = time.time()
-        for j, k, l in coordinates:
-            template_scores = tm_single_sample(volume.get_particle((j, k, l), n=B))
-            scores[j-stride:j, k-stride:k, l-stride:l] = np.max(template_scores)
-            indices[j-stride:j, k-stride:k, l-stride:l] = np.argmax(template_scores)
-            n += 1
-            if n % 100 == 0:
-                print(f"Making calls to GPU: {n}/{N} = {n / N * 100:.1f}%")
-                glFinish()
-                ect = datetime.datetime.now() + datetime.timedelta(seconds=(len(coordinates) - n) / n * (time.time() - ts))
-                print(f"Estimated time until completion: {(len(coordinates) - n) / n * (time.time() - ts):.1f} seconds: {ect.strftime('%Y-%m-%d %H:%M:%S')}")
-        scores[scores == 1e9] = np.amin(scores)
-        if return_indices:
-            return scores, indices
-        else:
-            return scores
+    # else:
+    #     B = templates.n
+    #     coordinates = list()
+    #     J, K, L = volume.data.shape
+    #     N = 0
+    #     for j in range(B // 2, J - B // 2, stride):
+    #         for k in range(B // 2, K - B // 2, stride):
+    #             for l in range(B // 2, L - B // 2, stride):
+    #                 if volume_mask[j, k, l] > 0:
+    #                     coordinates.append((j, k, l))
+    #                     N += 1
+    #     tm_bind_templates(templates, mask=template_mask, similarity_function=similarity_function)
+    #     scores = np.zeros_like(volume.data) + 1e9
+    #     indices = np.zeros(volume.data.shape, dtype=np.int16) - 1
+    #
+    #     n = 0
+    #     ts = time.time()
+    #     for j, k, l in coordinates:
+    #         template_scores = tm_single_sample(volume.get_particle((j, k, l), n=B))
+    #         scores[j-stride:j, k-stride:k, l-stride:l] = np.max(template_scores)
+    #         indices[j-stride:j, k-stride:k, l-stride:l] = np.argmax(template_scores)
+    #         n += 1
+    #         if n % 100 == 0:
+    #             printv(f"Making calls to GPU: {n}/{N} = {n / N * 100:.1f}%")
+    #             glFinish()
+    #             ect = datetime.datetime.now() + datetime.timedelta(seconds=(len(coordinates) - n) / n * (time.time() - ts))
+    #             printv(f"Estimated time until completion: {(len(coordinates) - n) / n * (time.time() - ts):.1f} seconds: {ect.strftime('%Y-%m-%d %H:%M:%S')}")
+    #     scores[scores == 1e9] = np.amin(scores)
+    #     if return_indices:
+    #         return scores, indices
+    #     else:
+    #         return scores
 
 
 def match_sample_to_templates(templates, samples, mask=None, similarity_function=0):

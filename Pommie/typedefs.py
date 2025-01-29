@@ -479,6 +479,17 @@ class Volume:
         self.apix = self.apix / fac
         return self
 
+    def bin(self, bin_factor=2):
+        if bin_factor == 1:
+            return self
+        b = bin_factor
+        _j = (self.data.shape[0] // b) * b
+        _k = (self.data.shape[1] // b) * b
+        _l = (self.data.shape[2] // b) * b
+        self.data = self.data[:_j, :_k, :_l]
+        self.data = self.data.reshape(_j//b, b, _k//b, b, _l//b, b).mean(5).mean(3).mean(1)
+        return self
+
     def threshold(self, threshold=0.5):
         self.data = self.data > threshold
         return self
