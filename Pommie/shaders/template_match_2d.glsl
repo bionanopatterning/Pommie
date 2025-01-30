@@ -89,12 +89,10 @@ void main(void)
     if (mask_true && (gl_LocalInvocationID.x == 0))
     {
         float max_score = scores[0];
-        float sum_score = scores[0];
         float max_index = 0.0f;
 
         for (int j=1; j<T; j++)
         {
-            sum_score += scores[j];
             if (scores[j] > max_score)
             {
                 max_score = scores[j];
@@ -102,17 +100,6 @@ void main(void)
             }
         }
 
-        float mu = sum_score / (T + 1);
-        float std = 0.0f;
-
-        for (int j=0; j<T; j++)
-        {
-            std += pow((scores[j] - mu), 2);
-        }
-
-        std = sqrt(std / T);
-
-        float out_score = z_score == 1 ? (max_score - mu) / std : max_score;
-        imageStore(slice_score, c, vec4(out_score, max_index, 0.0f, 0.0f));
+        imageStore(slice_score, c, vec4(max_score, max_index, 0.0f, 0.0f));
     }
 }

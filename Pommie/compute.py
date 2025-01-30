@@ -316,6 +316,12 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
     volume: Pommie.Volume object
     template: Pommie.Particle object
     mask: Pommie.Volume object with same size as volume, matching occurs only where mask > 0
+
+    returns: tuple (z_scores, indices, m_scores, r_scores); each element is an nd.array of same size as the input, with different values:
+        'z_scores': z-score value (m_score of pixel minus mean of scores, divided by stdev).
+        'indices':  index of best matching element in transforms array
+        'm_scores': raw score maximum; maximum similarity score.
+        'r_scores': raw score range: maximum minus minimum similarity score.
     """
 
     def printv(s):
@@ -356,7 +362,9 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
         J = volume.data.shape[0]
         K = volume.data.shape[1]
         L = volume.data.shape[2]
-        scores = np.zeros_like(volume.data)
+        z_scores = np.zeros_like(volume.data)  # z-score
+        m_scores = np.zeros_like(volume.data)  # max raw score
+        r_scores = np.zeros_like(volume.data)  # raw score max minus min.
         indices = np.zeros_like(volume.data)
         ts = time.time()
         it = 0
@@ -369,13 +377,15 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
 
             slice_scores = slice_tm_out[:, :, 0]
             slice_indices = slice_tm_out[:, :, 1]
+            #slice_m_scores = slice_tm_out[:, :, 2]
+            #slice_r_scores = slice_tm_out[:, :, 3]
             if stride > 1:
                 slice_scores = zoom(slice_scores, (K / slice_scores.shape[0], L / slice_scores.shape[1]), order=0)
-                scores[j:j + stride, :, :] = slice_scores
+                z_scores[j:j + stride, :, :] = slice_scores
                 slice_indices = zoom(slice_indices, (K / slice_indices.shape[0], L / slice_indices.shape[1]), order=0)
                 indices[j:j + stride, :, :] = slice_indices
             else:
-                scores[j, :, :] = slice_scores
+                z_scores[j, :, :] = slice_z_scores
                 indices[j, :, :] = slice_indices
         printv(f"Template matching: {time.time() - ts:.3f} s.")
         return scores, indices
