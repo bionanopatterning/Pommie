@@ -362,14 +362,13 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
         J = volume.data.shape[0]
         K = volume.data.shape[1]
         L = volume.data.shape[2]
-        z_scores = np.zeros_like(volume.data)  # z-score
-        m_scores = np.zeros_like(volume.data)  # max raw score
-        r_scores = np.zeros_like(volume.data)  # raw score max minus min.
+        scores = np.zeros_like(volume.data)
         indices = np.zeros_like(volume.data)
         ts = time.time()
         it = 0
 
         for j in range(0, J, stride):
+            print(f"TEMPLATE MATCHING: [{'█' * int(j / J * 50)}{'-' * (50 - int(j / J * 50))}] {j / J * 100.0:.1f}%", end="\r")
             it += 1
             if not np.any(volume_mask.data[j, :, :]):
                 continue
@@ -377,17 +376,16 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
 
             slice_scores = slice_tm_out[:, :, 0]
             slice_indices = slice_tm_out[:, :, 1]
-            #slice_m_scores = slice_tm_out[:, :, 2]
-            #slice_r_scores = slice_tm_out[:, :, 3]
             if stride > 1:
                 slice_scores = zoom(slice_scores, (K / slice_scores.shape[0], L / slice_scores.shape[1]), order=0)
-                z_scores[j:j + stride, :, :] = slice_scores
+                scores[j:j + stride, :, :] = slice_scores
                 slice_indices = zoom(slice_indices, (K / slice_indices.shape[0], L / slice_indices.shape[1]), order=0)
                 indices[j:j + stride, :, :] = slice_indices
             else:
-                z_scores[j, :, :] = slice_z_scores
+                scores[j, :, :] = slice_scores
                 indices[j, :, :] = slice_indices
         printv(f"Template matching: {time.time() - ts:.3f} s.")
+        print(f"\r{' '*256}", end="\r")
         return scores, indices
     # else:
     #     B = templates.n
