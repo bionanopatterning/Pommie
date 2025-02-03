@@ -52,7 +52,7 @@ def initialize():
     print(f"GL_MAX_COMPUTE_WORK_GROUP_SIZE = ({glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, 0)}, {glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, 0)}, {glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, 0)})")
     print(f"GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS = {glGetInteger(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS)}")
     print(f"GL_MAX_COMPUTE_SHARED_MEMORY_SIZE = {glGetInteger(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE)}")
-
+    print("")
 
     # Load shaders
     root = os.path.dirname(os.path.dirname(__file__))
@@ -368,7 +368,8 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
         it = 0
 
         for j in range(0, J, stride):
-            print(f"TEMPLATE MATCHING: [{'█' * int(j / J * 50)}{'-' * (50 - int(j / J * 50))}] {j / J * 100.0:.1f}%", end="\r")
+            _progress = (j - template.n//2 / (J - template.n//2) * 50)
+            print(f"TEMPLATE MATCHING: [{'█' * int(_progress)}{'-' * (50 - int(_progress))}] {_progress * 100.0:.1f}%", end="\r")
             it += 1
             if not np.any(volume_mask.data[j, :, :]):
                 continue
