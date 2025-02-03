@@ -1,3 +1,1 @@
-recursive-include Pommer/models/*.py
-recursive-include Pommer/core/*.json
-recursive-include Pommer/shaders/*.glsl
+recursive-include Pommie/shaders/*.glsl
