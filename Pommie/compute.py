@@ -37,7 +37,7 @@ def initialize():
     if not glfw.init():
         raise Exception("Could not initialize GLFW library.")
     glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
-    glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
+    glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)
     glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
     glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
     glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, GL_TRUE)
@@ -121,7 +121,7 @@ def tm2d_bind_templates(templates, masks=None):
 
     tm_n_templates = len(templates)
     if tm_n_templates > 1000:
-        print(f"tm2d_bind_templates: maximum number of templates is currently 500! (tried {tm_n_templates}.)")
+        print(f"tm2d_bind_templates: maximum number of templates is currently 1000! (tried {tm_n_templates}.)")
     tm_template_size = templates[0].shape[0]
     templates_data = np.concatenate([t.flatten() for t in templates])
     masks_data = np.concatenate([m.flatten() for m in masks])
@@ -368,8 +368,8 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
         it = 0
 
         for j in range(0, J, stride):
-            _progress = (j - template.n//2 / (J - template.n//2) * 50)
-            print(f"TEMPLATE MATCHING: [{'█' * int(_progress)}{'-' * (50 - int(_progress))}] {_progress * 100.0:.1f}%", end="\r")
+            _progress = (j / (J - template.n//2))
+            print(f"TEMPLATE MATCHING: [{'█' * int(_progress * 50)}{'-' * (50 - int(50 * _progress))}] {_progress * 100.0:.1f}%", end="\r")
             it += 1
             if not np.any(volume_mask.data[j, :, :]):
                 continue

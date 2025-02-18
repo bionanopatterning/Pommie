@@ -10,7 +10,7 @@ setup(
     packages=find_packages(),
     license='GPL v3',
     author='mgflast',
-    author_email='m.g.f.last@lumc.nl',
+    author_email='mlast@mrc-lmb.cam.ac.uk',
     long_description_content_type="text/markdown",
     package_data={'': ['*.png', '*.glsl', '*.pdf', '*.txt', '*.json']},
     include_package_data=False,  # weirdly, the above filetypes _are_ included when this parameter is set to False.
