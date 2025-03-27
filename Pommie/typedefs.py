@@ -447,6 +447,9 @@ class Volume:
         data = self.data[jlim[0]:jlim[1], klim[0]:klim[1], llim[0]:llim[1]]
         return Volume.from_array(data, self.apix)
 
+    def copy(self):
+        return Volume.from_array(self.data.copy())
+
     @property
     def projections(self):
         xy = np.mean(self.data, axis=0)

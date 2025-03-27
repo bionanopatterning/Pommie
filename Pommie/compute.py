@@ -47,13 +47,6 @@ def initialize():
         raise Exception("Could not create GLFW window.")
     glfw.make_context_current(window)
 
-    print("\nPommie.compute.initialize() - platform limits:")
-    print(f"GL_MAX_COMPUTE_WORK_GROUP_COUNT = ({glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, 0)}, {glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, 0)}, {glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, 0)})")
-    print(f"GL_MAX_COMPUTE_WORK_GROUP_SIZE = ({glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, 0)}, {glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, 0)}, {glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, 0)})")
-    print(f"GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS = {glGetInteger(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS)}")
-    print(f"GL_MAX_COMPUTE_SHARED_MEMORY_SIZE = {glGetInteger(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE)}")
-    print("")
-
     # Load shaders
     root = os.path.dirname(os.path.dirname(__file__))
     cs_reorient = Shader(os.path.join(root, "Pommie", "shaders", "resample_3d_texture.glsl"))
@@ -77,6 +70,15 @@ def initialize():
     image_buffer_a = Texture('r32f')
     image_buffer_b = Texture('r32f')
     image_buffer_c = Texture('rgba32f')
+
+
+def print_platform_limits():
+    print("\nPommie.compute - platform limits:")
+    print(f"GL_MAX_COMPUTE_WORK_GROUP_COUNT = ({glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, 0)}, {glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, 0)}, {glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, 0)})")
+    print(f"GL_MAX_COMPUTE_WORK_GROUP_SIZE = ({glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, 0)}, {glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, 0)}, {glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, 0)})")
+    print(f"GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS = {glGetInteger(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS)}")
+    print(f"GL_MAX_COMPUTE_SHARED_MEMORY_SIZE = {glGetInteger(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE)}")
+    print("")
 
 
 def reorient_volume(volume, transforms, mask=None):
@@ -144,6 +146,8 @@ def tm2d_bind_templates(templates, masks=None):
     # glBindBuffer(GL_SHADER_STORAGE_BUFFER, tm_scores_ssbo)
     # glBufferData(GL_SHADER_STORAGE_BUFFER, scores.nbytes, scores, GL_STATIC_DRAW)
 
+def tm2d_set_n(n=32):
+    set_tm2d_n(n)
 
 def set_tm2d_n(n=32):
     global cs_tm_2d, cs_tm_2d_n
@@ -336,7 +340,7 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
 
     if dimensionality == 2:
         if template.n != cs_tm_2d_n:
-            printv(f"find_template_in_volume using 2D-matching is currently set to use a template sizes of {cs_tm_2d_n}! (tried: {template.n})")
+            print(f"find_template_in_volume using 2D-matching is currently set to use a template size of {cs_tm_2d_n}! (tried: {template.n})")
             return
 
         if not skip_binding:
@@ -362,8 +366,8 @@ def find_template_in_volume(volume, volume_mask, template, template_mask, transf
         J = volume.data.shape[0]
         K = volume.data.shape[1]
         L = volume.data.shape[2]
-        scores = np.zeros_like(volume.data)
-        indices = np.zeros_like(volume.data)
+        scores = np.zeros(volume.data.shape, dtype=np.float32)
+        indices = np.zeros(volume.data.shape, dtype=np.float32)
         ts = time.time()
         it = 0
 
